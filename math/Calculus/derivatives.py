@@ -4,7 +4,7 @@ import torch
 x = torch.tensor([2.0], requires_grad=True)
 
 # Define a simple function: y = x^2
-y = x ** 2
+y = x**2
 
 # Compute the derivative dy/dx
 y.backward()
@@ -14,10 +14,13 @@ print(f"derivative dy / dx at x = 2 : {x.grad.item()}")
 
 import numpy as np
 
+
 def f(x):
-    return x **2
+    return x**2
 
-def numerical_derivative(f, x, h = 1e-5):
-    return (f(x+h) - f(x)) / h
 
-print ( numerical_derivative(f , 3)) # ~6
+def numerical_derivative(f, x, h=1e-5):
+    return (f(x + h) - f(x)) / h
+
+
+print(numerical_derivative(f, 3))  # ~6
