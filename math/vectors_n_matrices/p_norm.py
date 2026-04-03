@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import linalg as LA
 
-x = np.array([3,4])
+x = np.array([3, 4])
 
 l1 = LA.norm(x, ord=1)
 l2 = LA.norm(x, ord=2)

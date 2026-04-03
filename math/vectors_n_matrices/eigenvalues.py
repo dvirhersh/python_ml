@@ -1,8 +1,8 @@
 import numpy as np
 
-A = np.array([[2,0],[0,3]])
+A = np.array([[2, 0], [0, 3]])
 
-vals , vecs = np.linalg.eig(A)
+vals, vecs = np.linalg.eig(A)
 print(vals)
 
 ############
