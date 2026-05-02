@@ -1,11 +1,13 @@
-# pick a number to be guessed
+# pick a random number to be guessed
 
 # ask user to guess a number
 # get the guessed number
-# resond with right / wrong
+# respond with right/too high /too low 
 # repeat last 3 steps
+import random
 
 number = 13
+number = random.randint(1, 100)
 guessed = 0
 
 while number != guessed:
@@ -13,5 +15,7 @@ while number != guessed:
     guessed = int(input())
     if number == guessed:
         print('Right!')
+    elif number < guessed:
+        print("too high")
     else:
-        print('Wrong!')
+        print("too low")
