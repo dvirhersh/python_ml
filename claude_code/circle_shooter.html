@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Circle Shooter</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0e0e0e;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+    canvas { display: block; cursor: crosshair; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+const W = window.innerWidth;
+const H = window.innerHeight;
+canvas.width  = W;
+canvas.height = H;
+
+// ── State ──────────────────────────────────────────────
+let gameState = 'playing';   // 'playing' | 'level_transition' | 'game_over'
+let level     = 1;
+let lives     = 3;
+let transTimer = 0;
+const TRANS_DUR = 110;
+
+// ── Player ─────────────────────────────────────────────
+const player = {
+  x: W / 2, y: H / 2,
+  r: 18, speed: 3.6,
+  invincible: 0,
+  shootCooldown: 0,
+};
+
+// ── Input ──────────────────────────────────────────────
+const keys  = {};
+const mouse = { x: W / 2, y: H / 2 };
+
+document.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code))
+    e.preventDefault();
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  mouse.x = (e.clientX - r.left) * (W / r.width);
+  mouse.y = (e.clientY - r.top)  * (H / r.height);
+});
+
+canvas.addEventListener('click', e => {
+  if (gameState === 'game_over') { resetGame(); return; }
+  if (gameState !== 'playing') return;
+  const r  = canvas.getBoundingClientRect();
+  const mx = (e.clientX - r.left) * (W / r.width);
+  const my = (e.clientY - r.top)  * (H / r.height);
+  shoot(mx, my);
+});
+
+// ── Wave ───────────────────────────────────────────────
+let enemies      = [];
+let bullets      = [];
+let toSpawn      = 0;
+let spawnedCount = 0;
+let killedCount  = 0;
+let spawnTimer   = 0;
+let spawnInterval = 100;
+
+function startLevel() {
+  enemies       = [];
+  bullets       = [];
+  toSpawn       = level + 3;
+  spawnedCount  = 0;
+  killedCount   = 0;
+  spawnInterval = Math.max(32, 115 - level * 7);
+  spawnTimer    = 70;   // brief pause before first spawn
+  gameState     = 'playing';
+}
+
+function resetGame() {
+  level = 1; lives = 3;
+  player.x = W / 2; player.y = H / 2;
+  player.invincible = 0; player.shootCooldown = 0;
+  startLevel();
+}
+
+function spawnEnemy() {
+  if (spawnedCount >= toSpawn) return;
+  spawnedCount++;
+  const edge = Math.floor(Math.random() * 4);
+  let x, y;
+  const m = 26;
+  if (edge === 0) { x = Math.random() * W;  y = -m; }
+  else if (edge === 1) { x = W + m;  y = Math.random() * H; }
+  else if (edge === 2) { x = Math.random() * W;  y = H + m; }
+  else                 { x = -m;             y = Math.random() * H; }
+  enemies.push({
+    x, y, r: 18, hp: 3,
+    speed: 1.2 + (level - 1) * 0.22,
+    flashTimer: 0,
+  });
+}
+
+// ── Helpers ────────────────────────────────────────────
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+function enemyColor(hp, flash) {
+  if (flash) return '#e0ddd8';
+  if (hp === 3) return '#7a3030';
+  if (hp === 2) return '#9e4040';
+  return '#c05050';
+}
+
+function shoot(tx, ty) {
+  if (player.shootCooldown > 0) return;
+  const dx = tx - player.x, dy = ty - player.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) return;
+  bullets.push({ x: player.x, y: player.y, vx: dx/len * 9, vy: dy/len * 9, r: 5 });
+  player.shootCooldown = 12;
+}
+
+// ── Update ─────────────────────────────────────────────
+function update() {
+  if (gameState === 'level_transition') {
+    if (--transTimer <= 0) { level++; startLevel(); }
+    return;
+  }
+  if (gameState === 'game_over') return;
+
+  // Player movement
+  const spd = player.speed;
+  if ((keys['KeyA'] || keys['ArrowLeft'])  && player.x - player.r > 0)    player.x -= spd;
+  if ((keys['KeyD'] || keys['ArrowRight']) && player.x + player.r < W)    player.x += spd;
+  if ((keys['KeyW'] || keys['ArrowUp'])    && player.y - player.r > 0)    player.y -= spd;
+  if ((keys['KeyS'] || keys['ArrowDown'])  && player.y + player.r < H)    player.y += spd;
+
+  if (player.invincible   > 0) player.invincible--;
+  if (player.shootCooldown > 0) player.shootCooldown--;
+
+  if (keys['Space']) shoot(mouse.x, mouse.y);
+
+  // Spawn
+  if (++spawnTimer >= spawnInterval && spawnedCount < toSpawn) {
+    spawnEnemy(); spawnTimer = 0;
+  }
+
+  // Move enemies toward player
+  for (const e of enemies) {
+    const dx = player.x - e.x, dy = player.y - e.y;
+    const len = Math.hypot(dx, dy);
+    if (len > 0) { e.x += dx/len * e.speed; e.y += dy/len * e.speed; }
+    if (e.flashTimer > 0) e.flashTimer--;
+  }
+
+  // Move bullets, cull out-of-bounds
+  bullets = bullets.filter(b => {
+    b.x += b.vx; b.y += b.vy;
+    return b.x > -25 && b.x < W + 25 && b.y > -25 && b.y < H + 25;
+  });
+
+  // Bullet ↔ enemy collision
+  const deadBullets = new Set();
+  for (const b of bullets) {
+    for (const e of enemies) {
+      if (deadBullets.has(b)) break;
+      if (dist(b, e) < b.r + e.r) {
+        e.hp--; e.flashTimer = 8; deadBullets.add(b);
+        if (e.hp <= 0) killedCount++;
+        break;
+      }
+    }
+  }
+  bullets = bullets.filter(b => !deadBullets.has(b));
+  enemies = enemies.filter(e => e.hp > 0);
+
+  // Player ↔ enemy collision
+  if (player.invincible === 0) {
+    for (const e of enemies) {
+      if (dist(player, e) < player.r + e.r - 3) {
+        lives--;
+        player.invincible = 120;
+        if (lives <= 0) { gameState = 'game_over'; return; }
+        break;
+      }
+    }
+  }
+
+  // Wave complete?
+  if (killedCount >= toSpawn && enemies.length === 0) {
+    gameState  = 'level_transition';
+    transTimer = TRANS_DUR;
+  }
+}
+
+// ── Draw ───────────────────────────────────────────────
+function draw() {
+  ctx.fillStyle = '#0e0e0e';
+  ctx.fillRect(0, 0, W, H);
+
+  if (gameState === 'game_over') { drawGameOver(); return; }
+
+  // Bullets
+  ctx.shadowColor = '#b8a45a';
+  ctx.shadowBlur  = 10;
+  for (const b of bullets) {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    ctx.fillStyle = '#b8a45a';
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+
+  // Enemies
+  for (const e of enemies) {
+    const flash = e.flashTimer > 0 && Math.floor(e.flashTimer / 2) % 2 === 0;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+    ctx.fillStyle = enemyColor(e.hp, flash);
+    ctx.fill();
+    // HP pips below enemy
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.arc(e.x - 8 + i * 8, e.y + e.r + 8, 3, 0, Math.PI * 2);
+      ctx.fillStyle = i < e.hp ? '#b04040' : '#252525';
+      ctx.fill();
+    }
+  }
+
+  // Player (flashes during invincibility)
+  if (player.invincible === 0 || Math.floor(player.invincible / 5) % 2 === 0) {
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
+    ctx.fillStyle = '#4a8fa8';
+    ctx.fill();
+    ctx.strokeStyle = '#2e6a80';
+    ctx.lineWidth   = 2.5;
+    ctx.stroke();
+  }
+
+  drawHUD();
+
+  // Level-transition overlay
+  if (gameState === 'level_transition') {
+    const fade = Math.min(1, (TRANS_DUR - transTimer) / 18);
+    ctx.fillStyle = `rgba(14,14,14,${fade * 0.58})`;
+    ctx.fillRect(0, 0, W, H);
+    ctx.globalAlpha = fade;
+    ctx.font      = 'bold 54px monospace';
+    ctx.fillStyle = '#c8c8c8';
+    ctx.textAlign = 'center';
+    ctx.fillText(`LEVEL ${level + 1}`, W / 2, H / 2 - 12);
+    ctx.font      = '18px monospace';
+    ctx.fillStyle = '#555';
+    ctx.fillText('get ready...', W / 2, H / 2 + 28);
+    ctx.globalAlpha = 1;
+    ctx.textAlign   = 'left';
+  }
+}
+
+function drawHUD() {
+  const p = 20;
+
+  // Lives (top-left)
+  ctx.font      = '11px monospace';
+  ctx.fillStyle = '#444';
+  ctx.textAlign = 'left';
+  ctx.fillText('LIVES', p, p + 12);
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.arc(p + 9 + i * 22, p + 28, 7, 0, Math.PI * 2);
+    ctx.fillStyle = i < lives ? '#c05050' : '#222';
+    ctx.fill();
+    if (i < lives) {
+      ctx.strokeStyle = '#7a2020';
+      ctx.lineWidth   = 1.5;
+      ctx.stroke();
+    }
+  }
+
+  // Level + kill count (top-right)
+  ctx.textAlign = 'right';
+  ctx.font      = 'bold 15px monospace';
+  ctx.fillStyle = '#666';
+  ctx.fillText(`LEVEL  ${level}`, W - p, p + 14);
+  ctx.font      = '12px monospace';
+  ctx.fillStyle = '#3a3a3a';
+  ctx.fillText(`${killedCount} / ${toSpawn}  enemies`, W - p, p + 32);
+
+  // Controls hint (bottom, first level only)
+  if (level === 1) {
+    ctx.textAlign = 'center';
+    ctx.font      = '12px monospace';
+    ctx.fillStyle = '#303030';
+    ctx.fillText('WASD / ↑↓←→  move   ·   Click / Space  shoot', W / 2, H - 16);
+  }
+
+  ctx.textAlign = 'left';
+}
+
+function drawGameOver() {
+  ctx.font      = 'bold 56px monospace';
+  ctx.fillStyle = '#8a2828';
+  ctx.textAlign = 'center';
+  ctx.fillText('GAME OVER', W / 2, H / 2 - 36);
+  ctx.font      = '20px monospace';
+  ctx.fillStyle = '#555';
+  ctx.fillText(`You reached level ${level}`, W / 2, H / 2 + 16);
+  ctx.font      = '14px monospace';
+  ctx.fillStyle = '#383838';
+  ctx.fillText('click to play again', W / 2, H / 2 + 52);
+  ctx.textAlign = 'left';
+}
+
+// ── Loop ───────────────────────────────────────────────
+function loop() {
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+startLevel();
+loop();
+</script>
+</body>
+</html>
