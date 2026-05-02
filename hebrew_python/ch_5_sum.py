@@ -2,21 +2,17 @@
 # Add this number to sum
 # Repeat 2 steps until inserts nothing
 # print sum
-user_sum = 0
-
-print("please enter a number")
-try:
-    user_input = int(input())
-except ValueError:
-    print("please enter a number")
-while user_input != '':
-    user_sum += user_input
-    print("please enter another number")
-    try:
-        user_input = int(input())
-    except ValueError:
-        print("I see you're done")
+nums = []
+while True:
+    print("please insert a number")
+    x = input()
+    if x == '':
         break
+    try:
+        nums.append(float(x))
+    except ValueError:
+        print("please enter a number and not something else")
 
-print(f"your user_sum is : {user_sum}")
+print(f"your user_sum is : {sum(nums)}")
+print(f"from the numbers : {nums}")
     
